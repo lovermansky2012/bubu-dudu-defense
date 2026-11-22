@@ -25,7 +25,7 @@ async function init(db) {
   if (ready) return;
   await db.batch([
     db.prepare('CREATE TABLE IF NOT EXISTS orders(nonce TEXT PRIMARY KEY, uid INTEGER, type TEXT, paid INTEGER DEFAULT 0, redeemed INTEGER DEFAULT 0, charge TEXT, ts INTEGER)'),
-    db.prepare('CREATE TABLE IF NOT EXISTS scores(uid INTEGER, level INTEGER, name TEXT, score INTEGER, PRIMARY KEY(uid, level))'),
+    db.prepare('CREATE TABLE IF NOT EXISTS scores(uid INTEGER, game TEXT, level INTEGER, name TEXT, score INTEGER, PRIMARY KEY(uid, game, level))'),
   ]);
   ready = true;
 }
@@ -38,16 +38,21 @@ async function api(request, env, path) {
   if (path === '/api/webhook') {
     if (request.headers.get('x-telegram-bot-api-secret-token') !== env.WEBHOOK_SECRET) return json({ error: 'forbidden' }, 403);
     const u = await request.json();
-    if (u.message?.text?.startsWith('/start')) {
-  await tg(env, 'sendMessage', {
-    chat_id: u.message.chat.id,
-    text: 'سلام! 🐼 به بازی Bubu & Dudu Tower Defense خوش آمدی! برای شروع، دکمه Play Game را بزن.'
-  });
-} else if (u.pre_checkout_query) {
+    if (u.pre_checkout_query) {
       const q = u.pre_checkout_query, parts = String(q.invoice_payload || '').split(':');
       const row = await env.DB.prepare('SELECT paid FROM orders WHERE nonce=?1 AND uid=?2').bind(parts[2], Number(parts[0])).first();
       const ok = !!row && !row.paid && q.currency === 'XTR' && Number(parts[0]) === q.from.id;
       await tg(env, 'answerPreCheckoutQuery', ok ? { pre_checkout_query_id: q.id, ok: true } : { pre_checkout_query_id: q.id, ok: false, error_message: 'Order not found' });
+    } else if (u.message && u.message.text && u.message.chat) {
+      const cmd = u.message.text.trim().split(/[\s@]/)[0].toLowerCase(), origin = new URL(request.url).origin;
+      if (cmd === '/start' || cmd === '/games') {
+        await tg(env, 'sendMessage', { chat_id: u.message.chat.id, text: 'Welcome to Mocha Games! Tap Play to pick a game.',
+          reply_markup: { inline_keyboard: [[{ text: 'Play Games', web_app: { url: origin } }]] } });
+      } else if (cmd === '/top') {
+        const rows = (await env.DB.prepare("SELECT name, SUM(score) AS total FROM scores WHERE game='td' GROUP BY uid ORDER BY total DESC LIMIT 10").all()).results || [];
+        await tg(env, 'sendMessage', { chat_id: u.message.chat.id, text: rows.length ? 'Top players\n' + rows.map((r, i) => `${i + 1}. ${r.name} - ${r.total}`).join('\n') : 'No scores yet. Be the first!',
+          reply_markup: { inline_keyboard: [[{ text: 'Play Games', web_app: { url: origin } }]] } });
+      }
     } else if (u.message && u.message.successful_payment) {
       const sp = u.message.successful_payment, parts = String(sp.invoice_payload || '').split(':');
       if (Number(parts[0]) === u.message.from.id)
@@ -78,18 +83,19 @@ async function api(request, env, path) {
     return json({ ok: (r.meta && r.meta.changes) === 1 });
   }
   if (path === '/api/score') {
-    const level = Math.floor(body.level), score = Math.floor(body.score);
+    const level = Math.floor(body.level), score = Math.floor(body.score), game = String(body.game || 'td').slice(0, 20);
     if (!(level >= 1 && level <= 50) || !(score >= 0 && score <= 200000)) return json({ error: 'range' }, 400);
     const name = String(user.first_name || user.username || 'Player').slice(0, 24);
-    await env.DB.prepare('INSERT INTO scores(uid, level, name, score) VALUES(?1, ?2, ?3, ?4) ON CONFLICT(uid, level) DO UPDATE SET score=MAX(score, excluded.score), name=excluded.name')
-      .bind(user.id, level, name, score).run();
+    await env.DB.prepare('INSERT INTO scores(uid, game, level, name, score) VALUES(?1, ?2, ?3, ?4, ?5) ON CONFLICT(uid, game, level) DO UPDATE SET score=MAX(score, excluded.score), name=excluded.name')
+      .bind(user.id, game, level, name, score).run();
     return json({ ok: true });
   }
   if (path === '/api/leaderboard') {
-    const top = (await env.DB.prepare('SELECT name, SUM(score) AS total FROM scores GROUP BY uid ORDER BY total DESC LIMIT 10').all()).results || [];
-    const mine = await env.DB.prepare('SELECT SUM(score) AS t FROM scores WHERE uid=?1').bind(user.id).first();
+    const game = String(body.game || 'td').slice(0, 20);
+    const top = (await env.DB.prepare('SELECT name, SUM(score) AS total FROM scores WHERE game=?1 GROUP BY uid ORDER BY total DESC LIMIT 10').bind(game).all()).results || [];
+    const mine = await env.DB.prepare('SELECT SUM(score) AS t FROM scores WHERE uid=?1 AND game=?2').bind(user.id, game).first();
     const t = (mine && mine.t) || 0;
-    const rk = await env.DB.prepare('SELECT COUNT(*) AS c FROM (SELECT uid FROM scores GROUP BY uid HAVING SUM(score) > ?1)').bind(t).first();
+    const rk = await env.DB.prepare('SELECT COUNT(*) AS c FROM (SELECT uid FROM scores WHERE game=?1 GROUP BY uid HAVING SUM(score) > ?2)').bind(game, t).first();
     return json({ top: top.map((r) => ({ n: r.name, s: r.total })), me: t ? { rank: ((rk && rk.c) || 0) + 1, s: t } : null });
   }
   return json({ error: 'not found' }, 404);
@@ -97,6 +103,16 @@ async function api(request, env, path) {
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
+    if (path === '/api/setup') {
+      const url = new URL(request.url);
+      if (!env.WEBHOOK_SECRET || url.searchParams.get('key') !== env.WEBHOOK_SECRET) return json({ error: 'wrong key' }, 403);
+      const out = {};
+      out.webhook = await tg(env, 'setWebhook', { url: url.origin + '/api/webhook', secret_token: env.WEBHOOK_SECRET, allowed_updates: ['message', 'pre_checkout_query'] });
+      out.menu = await tg(env, 'setChatMenuButton', { menu_button: { type: 'web_app', text: 'Play', web_app: { url: url.origin } } });
+      out.commands = await tg(env, 'setMyCommands', { commands: [{ command: 'start', description: 'Open the games' }, { command: 'games', description: 'Choose a game' }, { command: 'top', description: 'Top players' }] });
+      out.description = await tg(env, 'setMyDescription', { description: 'Cute games you can play right inside Telegram. Tap Start to play!' });
+      return json(out);
+    }
     if (path.startsWith('/api/')) {
       if (request.method !== 'POST') return json({ error: 'method' }, 405);
       try { return await api(request, env, path); } catch (e) { return json({ error: 'server', detail: String(e).slice(0, 200) }, 500); }
