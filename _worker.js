@@ -29,6 +29,7 @@ async function init(db) {
   ]);
   ready = true;
 }
+const ADMIN_ID = 1087530024;
 const PRODUCTS = {
   tower: { title: 'Extra Tower Slot', description: 'Place one more tower in this level' },
   revive: { title: 'Continue Playing', description: 'Come back with 3 lives' },
