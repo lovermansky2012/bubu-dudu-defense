@@ -45,6 +45,19 @@ async function api(request, env, path) {
       await tg(env, 'answerPreCheckoutQuery', ok ? { pre_checkout_query_id: q.id, ok: true } : { pre_checkout_query_id: q.id, ok: false, error_message: 'Order not found' });
     } else if (u.message && u.message.text && u.message.chat) {
       const cmd = u.message.text.trim().split(/[\s@]/)[0].toLowerCase(), origin = new URL(request.url).origin;
+      const from = u.message.from;
+const chatId = u.message.chat.id;
+const name = String(from.first_name || from.username || 'Player').slice(0, 50);
+const now = Date.now();
+
+await env.DB.prepare(`
+  INSERT INTO users (uid, chat_id, name, started_at, last_seen)
+  VALUES (?1, ?2, ?3, ?4, ?4)
+  ON CONFLICT(uid) DO UPDATE SET
+    chat_id = excluded.chat_id,
+    name = excluded.name,
+    last_seen = excluded.last_seen
+`).bind(from.id, chatId, name, now).run();
       if (cmd === '/start' || cmd === '/games') {
         await tg(env, 'sendMessage', { chat_id: u.message.chat.id, text: 'Welcome to Mocha Games! Tap Play to pick a game.',
           reply_markup: { inline_keyboard: [[{ text: 'Play Games', web_app: { url: origin } }]] } });
