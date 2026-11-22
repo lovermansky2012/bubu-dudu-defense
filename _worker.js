@@ -38,7 +38,12 @@ async function api(request, env, path) {
   if (path === '/api/webhook') {
     if (request.headers.get('x-telegram-bot-api-secret-token') !== env.WEBHOOK_SECRET) return json({ error: 'forbidden' }, 403);
     const u = await request.json();
-    if (u.pre_checkout_query) {
+    if (u.message?.text?.startsWith('/start')) {
+  await tg(env, 'sendMessage', {
+    chat_id: u.message.chat.id,
+    text: 'سلام! 🐼 به بازی Bubu & Dudu Tower Defense خوش آمدی! برای شروع، دکمه Play Game را بزن.'
+  });
+} else if (u.pre_checkout_query) {
       const q = u.pre_checkout_query, parts = String(q.invoice_payload || '').split(':');
       const row = await env.DB.prepare('SELECT paid FROM orders WHERE nonce=?1 AND uid=?2').bind(parts[2], Number(parts[0])).first();
       const ok = !!row && !row.paid && q.currency === 'XTR' && Number(parts[0]) === q.from.id;
