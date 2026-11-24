@@ -73,7 +73,7 @@ requestAnimationFrame(draw)}
 function update(unit,gy){frame++;let oldY=player.y;player.vx=(keys.right?3.1:0)-(keys.left?3.1:0);if(player.vx)player.face=Math.sign(player.vx);if(jumpQueued&&player.grounded){player.vy=-9.4;player.grounded=false}jumpQueued=falseplayer.vy=Math.min(11,player.vy+.43);player.x+=player.vx;player.y+=player.vy;player.x=Math.max(0,Math.min(world.width-player.w,player.x));player.grounded=false;
 const feet=player.y+player.h;for(const p of world.platforms){let top=-p.y;if(player.x+player.w>p.x&&player.x<p.x+p.w&&oldY+player.h<=top+5&&feet>=top&&player.vy>=0){player.y=top-player.h;player.vy=0;player.grounded=true}}
 if(player.y>190){lives--;document.getElementById('lives').textContent=lives;if(lives<=0)dead=true;else resetPlayer()}
-if(Math.abs(player.x-world.switch.x)<35&&!world.switch.on&&jumpQueued){world.switch.on=true;world.door.open=true;document.getElementById('hint').textContent='The old gate is open. Reach bubu!'}
+if(Math.abs(player.x-world.switch.x)<35&&!world.switch.on&&jumpPressed){world.switch.on=true;world.door.open=true;document.getElementById('hint').textContent='The old gate is open. Reach bubu!'}
 if(world.door.open&&player.x>world.bubu.x-55&&player.x<world.bubu.x+55){world.bubu.rescued=true;won=true}
 }
 function resetPlayer(){player.x=90;player.y=-76;player.vx=0;player.vy=0}
