@@ -36,6 +36,7 @@ function queueJump(){jumpQueued=true;jumpQueuedAt=performance.now()}
 let audioCtx=null,audioOn=false,audioTimer=null;
 function tone(freq,dur,vol=.08,type='sine',endFreq=freq){if(!audioOn||!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=audioCtx.currentTime;o.type=type;o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(Math.max(1,endFreq),t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+dur+.03)}
 function footstep(){tone(72,.075,.055,'triangle',48)}
+function wolfFootstep(){tone(52,.085,.045,'triangle',31)}
 function jumpSound(){tone(220,.16,.07,'sine',420)}
 function landSound(){tone(95,.10,.08,'triangle',55)}
 function wolfGrowl(){tone(95,.48,.10,'sawtooth',42)}
@@ -44,7 +45,7 @@ function startMusic(){if(audioOn)return;const AC=window.AudioContext||window.web
 document.getElementById('audio').onclick=()=>{if(!audioOn){startMusic()}else{audioOn=false;clearTimeout(audioTimer);if(audioCtx)audioCtx.suspend();document.getElementById('audio').textContent='♫ SOUND OFF'}};
 const world={width:1900,ground:0,platforms:[{x:0,y:0,w:430,h:70},{x:520,y:0,w:360,h:70},{x:1000,y:0,w:900,h:70},{x:310,y:-105,w:130,h:18},{x:650,y:-145,w:150,h:18},{x:1120,y:-105,w:180,h:18}],switch:{x:360,y:-35,on:false},door:{x:1510,y:-145,open:false},bubu:{x:1760,y:-74,rescued:false}};
 const player={x:90,y:-76,vx:0,vy:0,w:42,h:58,grounded:false,face:1};
-const wolves=[{x:540,vx:0,speed:1.75},{x:960,vx:0,speed:2.05},{x:1370,vx:0,speed:2.35}];
+const wolves=[{x:540,vx:0,speed:1.75,stepAt:0},{x:960,vx:0,speed:2.05,stepAt:0},{x:1370,vx:0,speed:2.35,stepAt:0}];
 function resize(){const r=stage.getBoundingClientRect();W=r.width;H=r.height;const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.floor(W*d);canvas.height=Math.floor(H*d);ctx.setTransform(d,0,0,d,0,0);scale=1}
 new ResizeObserver(resize).observe(stage);resize();
 function down(k,v){keys[k]=v}
@@ -87,7 +88,7 @@ const feet=player.y+player.h;for(const p of world.platforms){let top=p.y;if(play
 if(player.y>190){lives--;document.getElementById('lives').textContent=lives;if(lives<=0)dead=true;else resetPlayer()}
 if(!wasGrounded&&player.grounded)landSound();
 if(player.grounded&&Math.abs(player.vx)>.55&&now-lastStepAt>285){footstep();lastStepAt=now}
-if(wolfMission){for(const w of wolves){const dx=player.x-w.x;if(Math.abs(dx)<560){w.vx=Math.sign(dx)*w.speed;if(Math.abs(dx)<42&&Math.abs(player.y+player.h)<28){caught=true;caughtAt=now;player.vx=0;player.vy=0;caughtSound();break}}else{w.vx*=.92}w.x+=w.vx;if(w.x<20)w.x=20;if(w.x>world.width-50)w.x=world.width-50}if(now-lastGrowlAt>5200){wolfGrowl();lastGrowlAt=now}}
+if(wolfMission){for(const w of wolves){const dx=player.x-w.x;if(Math.abs(dx)<560){w.vx=Math.sign(dx)*w.speed;if(now-w.stepAt>340){wolfFootstep();w.stepAt=now}if(Math.abs(dx)<42&&Math.abs(player.y+player.h)<28){caught=true;caughtAt=now;player.vx=0;player.vy=0;caughtSound();break}}else{w.vx*=.92}w.x+=w.vx;if(w.x<20)w.x=20;if(w.x>world.width-50)w.x=world.width-50}if(now-lastGrowlAt>5200){wolfGrowl();lastGrowlAt=now}}
 if(Math.abs(player.x-world.switch.x)<35&&!world.switch.on&&player.grounded&&Math.abs((player.y+player.h)-world.switch.y)<40){world.switch.on=true;world.door.open=true;document.getElementById('hint').textContent='The old gate is open. Reach bubu!'}
 if(world.door.open&&player.x>world.bubu.x-55&&player.x<world.bubu.x+55){world.bubu.rescued=true;won=true}
 }
