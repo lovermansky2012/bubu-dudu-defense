@@ -22,16 +22,16 @@ canvas{width:100%;height:100%;display:block}
 @media(min-width:700px){#app{max-width:460px;margin:auto;border-left:1px solid #ffffff18;border-right:1px solid #ffffff18}}
 </style></head>
 <body><div id="app">
-<header><div class="brand">BUBU & DUDU <small>RESCUE MISSION · TEST BUILD</small></div><div id="hud"><span>LEVEL <b>01 / 10</b></span><span>❤ <b id="lives">3</b></span></div></header>
+<header><div class="brand">BUBU & DUDU <small>RESCUE MISSION · TEST BUILD</small></div><div id="hud"><span>LEVEL <b>01 / 10</b></span><span>❤ <b id="lives">3</b></span><button id="audio">♫ SOUND ON</button></div></header>
 <main id="stage"><canvas id="game"></canvas><div id="hint">Find the switch. Open the way to bubu.</div>
 <div id="overlay"><div class="panel"><h1>Rescue Mission</h1><p>dudu has reached the abandoned forest station. Find the hidden switch, avoid the broken floor and rescue bubu.</p><button class="primary" id="start">START LEVEL 1</button><div class="note">Prototype · Mobile controls · No purchases</div></div></div></main>
-<section id="controls"><div class="pad"><button class="ctrl" data-key="left">◀</button><button class="ctrl" data-key="right">▶</button></div><button class="ctrl" id="jump" data-key="jump">JUMP</button></section>
+<section id="controls"><button id="jump">JUMP</button><div id="stick"><div id="knob"></div></div></section>
 </div>
 <script>
 (()=> {
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),stage=document.getElementById('stage');
 let W=0,H=0,scale=1,started=false,won=false,dead=false,lives=3,cam=0,frame=0;
-const keys={left:false,right:false,jump:false};
+const keys={left:false,right:false,jump:false};\nlet audioCtx=null,audioOn=false,audioTimer=null;\nfunction startMusic(){if(audioOn)return;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audioCtx=new AC();audioCtx.resume();audioOn=true;document.getElementById('audio').textContent='♫ SOUND ON';const master=audioCtx.createGain();master.gain.value=.12;master.connect(audioCtx.destination);const low=audioCtx.createBiquadFilter();low.type='lowpass';low.frequency.value=850;low.connect(master);function note(freq,dur,when,vol){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,when);g.gain.setValueAtTime(.0001,when);g.gain.linearRampToValueAtTime(vol,when+.8);g.gain.exponentialRampToValueAtTime(.0001,when+dur);o.connect(g);g.connect(low);o.start(when);o.stop(when+dur+.1)}const seq=[110,164.81,130.81,196,98,146.83,123.47,185];let n=0;function phrase(){if(!audioOn)return;let t=audioCtx.currentTime;note(seq[n%8],5,t,.18);note(seq[(n+2)%8]*2,3,t+1.4,.045);note(seq[(n+4)%8]*1.5,4,t+2.8,.035);n++;audioTimer=setTimeout(phrase,5200)}phrase()}\ndocument.getElementById('audio').onclick=()=>{if(!audioOn){startMusic()}else{audioOn=false;clearTimeout(audioTimer);if(audioCtx)audioCtx.suspend();document.getElementById('audio').textContent='♫ SOUND OFF'}};
 const world={width:1900,ground:0,platforms:[{x:0,y:0,w:430,h:70},{x:520,y:0,w:360,h:70},{x:1000,y:0,w:900,h:70},{x:310,y:-105,w:130,h:18},{x:650,y:-145,w:150,h:18},{x:1120,y:-105,w:180,h:18}],switch:{x:740,y:-168,on:false},door:{x:1510,y:-145,open:false},bubu:{x:1760,y:-74,rescued:false}};
 const player={x:90,y:-76,vx:0,vy:0,w:42,h:58,grounded:false,face:1};
 function resize(){const r=stage.getBoundingClientRect();W=r.width;H=r.height;const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.floor(W*d);canvas.height=Math.floor(H*d);ctx.setTransform(d,0,0,d,0,0);scale=1}
@@ -40,7 +40,7 @@ function down(k,v){keys[k]=v}
 document.querySelectorAll('[data-key]').forEach(b=>{let k=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();down(k,true);b.classList.add('down')});['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>{down(k,false);b.classList.remove('down')}))});
 addEventListener('keydown',e=>{if(['ArrowLeft','a','ArrowRight','d',' ','ArrowUp','w'].includes(e.key))e.preventDefault();if(e.key==='ArrowLeft'||e.key==='a')down('left',true);if(e.key==='ArrowRight'||e.key==='d')down('right',true);if(e.key===' '||e.key==='ArrowUp'||e.key==='w')down('jump',true)});
 addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')down('left',false);if(e.key==='ArrowRight'||e.key==='d')down('right',false);if(e.key===' '||e.key==='ArrowUp'||e.key==='w')down('jump',false)});
-document.getElementById('start').onclick=()=>{started=true;document.getElementById('overlay').style.display='none'};
+document.getElementById('start').onclick=()=>{startMusic();started=true;document.getElementById('overlay').style.display='none'};
 function rounded(x,y,w,h,r,c){ctx.fillStyle=c;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
 function drawBear(x,y,white=false){ctx.save();ctx.translate(x,y);const fur=white?'#f0eee9':'#a96f50',dark=white?'#593329':'#4b261f',cheek=white?'#ef9eaa':'#f1c35d';
 ctx.fillStyle=dark;ctx.beginPath();ctx.arc(11,10,11,0,7);ctx.arc(35,10,11,0,7);ctx.fill();
