@@ -33,8 +33,43 @@ const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),stage=d
 let W=0,H=0,scale=1,started=false,won=false,dead=false,lives=3,cam=0,frame=0,wolfMission=false,caught=false,caughtAt=0,lastStepAt=0,lastGrowlAt=0;
 const keys={left:false,right:false};let jumpQueued=false,jumpQueuedAt=0,lastGroundedAt=0;
 function queueJump(){jumpQueued=true;jumpQueuedAt=performance.now()}
-let audioCtx=null,audioOn=false,audioTimer=null;
-function tone(freq,dur,vol=.08,type='sine',endFreq=freq){if(!audioOn||!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain(),t=audioCtx.currentTime;o.type=type;o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(Math.max(1,endFreq),t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+dur+.03)}
+let audioCtx=null,audioOn=false,audioTimer=null,musicBus=null,musicStep=0,musicMode="";
+function musicOsc(freq,when,duration,peak,wave="sine",endFreq=freq,cutoff=2200){
+ const o=audioCtx.createOscillator(),g=audioCtx.createGain(),f=audioCtx.createBiquadFilter();
+ o.type=wave;o.frequency.setValueAtTime(freq,when);if(endFreq!==freq)o.frequency.exponentialRampToValueAtTime(Math.max(1,endFreq),when+duration);
+ f.type="lowpass";f.frequency.value=cutoff;g.gain.setValueAtTime(.0001,when);g.gain.linearRampToValueAtTime(peak,when+.012);g.gain.exponentialRampToValueAtTime(.0001,when+duration);
+ o.connect(f);f.connect(g);g.connect(musicBus);o.start(when);o.stop(when+duration+.04);
+}
+let noiseBuffer=null;
+function musicNoise(when,duration,peak,highpass=5000){
+ if(!noiseBuffer){noiseBuffer=audioCtx.createBuffer(1,audioCtx.sampleRate,audioCtx.sampleRate);const d=noiseBuffer.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+ const src=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();src.buffer=noiseBuffer;f.type="highpass";f.frequency.value=highpass;g.gain.setValueAtTime(peak,when);g.gain.exponentialRampToValueAtTime(.0001,when+duration);src.connect(f);f.connect(g);g.connect(musicBus);src.start(when);src.stop(when+duration);
+}
+function scheduleMusicStep(){
+ if(!audioOn||!audioCtx||!musicBus)return;
+ const t=audioCtx.currentTime+.025,step=musicStep%16,wild=musicMode==="wolf";
+ const progression=wild?[[110,130.81,164.81],[98,123.47,146.83],[87.31,110,130.81],[98,123.47,146.83]]:[[110,130.81,164.81],[87.31,110,130.81],[130.81,164.81,196],[98,123.47,146.83]];
+ const chord=progression[Math.floor(musicStep/16)%4],root=chord[0];
+ if(step===0)chord.forEach(n=>musicOsc(n,t,1.8,.035,"sine",n,700));
+ if(step%2===0)musicOsc(root/2,t,.22,wild?.16:.12,"triangle",root/2*.92,260);
+ if(step===0||step===8)musicOsc(105,t,.20,wild?.32:.23,"sine",39,180);
+ if(step===4||step===12){musicNoise(t,.16,wild?.12:.085,1100);musicOsc(185,t,.09,.045,"triangle",90,500)}
+ if(step%2===1)musicNoise(t,.045,wild?.035:.022,8500);
+ const melody=wild?[440,0,523.25,0,659.25,0,587.33,0,493.88,0,587.33,0,698.46,0,587.33,0]:[329.63,0,392,0,440,0,392,0,329.63,0,293.66,0,261.63,0,293.66,0];
+ if(melody[step])musicOsc(melody[step],t,.20,wild?.085:.055,"triangle",melody[step]*.985,1800);
+ musicStep++;
+}
+function startMusic(){
+ const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+ if(!audioCtx)audioCtx=new AC();
+ audioCtx.resume();audioOn=true;document.getElementById('audio').textContent='♫ MUSIC ON';
+ if(!musicBus){const comp=audioCtx.createDynamicsCompressor();comp.threshold.value=-20;comp.knee.value=16;comp.ratio.value=3;comp.attack.value=.012;comp.release.value=.22;musicBus=audioCtx.createGain();musicBus.gain.value=.78;musicBus.connect(comp);comp.connect(audioCtx.destination)}
+ const nextMode=wolfMission?"wolf":"story";
+ if(musicMode!==nextMode){musicMode=nextMode;musicStep=0}
+ clearInterval(audioTimer);scheduleMusicStep();
+ const tempo=musicMode==="wolf"?142:108;
+ audioTimer=setInterval(scheduleMusicStep,60000/tempo/2);
+}
 function footstep(){tone(72,.075,.055,'triangle',48)}
 function wolfFootstep(){tone(52,.085,.045,'triangle',31)}
 function jumpSound(){tone(220,.16,.07,'sine',420)}
@@ -42,7 +77,7 @@ function landSound(){tone(95,.10,.08,'triangle',55)}
 function wolfGrowl(){tone(95,.48,.10,'sawtooth',42)}
 function caughtSound(){tone(180,.65,.12,'sawtooth',38);setTimeout(()=>tone(65,.5,.10,'triangle',28),180)}
 function startMusic(){if(audioOn)return;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audioCtx=new AC();audioCtx.resume();audioOn=true;document.getElementById('audio').textContent='♫ SOUND ON';const master=audioCtx.createGain();master.gain.value=.30;master.connect(audioCtx.destination);const low=audioCtx.createBiquadFilter();low.type='lowpass';low.frequency.value=850;low.connect(master);function note(freq,dur,when,vol){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,when);g.gain.setValueAtTime(.0001,when);g.gain.linearRampToValueAtTime(vol,when+.8);g.gain.exponentialRampToValueAtTime(.0001,when+dur);o.connect(g);g.connect(low);o.start(when);o.stop(when+dur+.1)}const seq=[110,164.81,130.81,196,98,146.83,123.47,185];let n=0;function phrase(){if(!audioOn)return;let t=audioCtx.currentTime;note(seq[n%8],5,t,.25);note(seq[(n+2)%8]*2,3,t+1.4,.075);note(seq[(n+4)%8]*1.5,4,t+2.8,.06);n++;audioTimer=setTimeout(phrase,5200)}phrase()}
-document.getElementById('audio').onclick=()=>{if(!audioOn){startMusic()}else{audioOn=false;clearTimeout(audioTimer);if(audioCtx)audioCtx.suspend();document.getElementById('audio').textContent='♫ SOUND OFF'}};
+document.getElementById('audio').onclick=()=>{if(!audioOn){startMusic()}else{audioOn=false;clearInterval(audioTimer);if(audioCtx)audioCtx.suspend();document.getElementById('audio').textContent='♫ MUSIC OFF'}};
 const world={width:1900,ground:0,platforms:[{x:0,y:0,w:430,h:70},{x:520,y:0,w:360,h:70},{x:1000,y:0,w:900,h:70},{x:310,y:-105,w:130,h:18},{x:650,y:-145,w:150,h:18},{x:1120,y:-105,w:180,h:18}],switch:{x:360,y:-35,on:false},door:{x:1510,y:-145,open:false},bubu:{x:1760,y:-74,rescued:false}};
 const player={x:90,y:-76,vx:0,vy:0,w:42,h:58,grounded:false,face:1};
 const wolves=[{x:540,vx:0,speed:1.75,stepAt:0},{x:960,vx:0,speed:2.05,stepAt:0},{x:1370,vx:0,speed:2.35,stepAt:0}];
