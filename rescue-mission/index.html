@@ -68,9 +68,17 @@ function drawWolf(x,gy){ctx.save();ctx.translate(x,gy-58);ctx.fillStyle='#353b42
 function draw(){if(!W||!H)return;ctx.clearRect(0,0,W,H);const groundY=H*.79,unit=Math.min(W/390,H/600),viewW=W/unit;cam=Math.max(0,Math.min(world.width-viewW,player.x- viewW*.34));
 ctx.save();ctx.scale(unit,unit);ctx.translate(-cam,0);const gy=groundY/unit;
 let bg=ctx.createLinearGradient(0,0,0,gy);bg.addColorStop(0,'#1a2631');bg.addColorStop(1,'#0a1018');ctx.fillStyle=bg;ctx.fillRect(cam,0,viewW,gy+100);
-for(let i=0;i<22;i++){let x=i*105;ctx.fillStyle=i%2?'#202d35':'#26343a';ctx.beginPath();ctx.moveTo(x,gy-130-(i%4)*30);ctx.lineTo(x+35,gy-240-(i%3)*30);ctx.lineTo(x+95,gy-125);ctx.fill()}
-for(let i=0;i<12;i++){let x=i*170+30;ctx.fillStyle='#101a20';ctx.fillRect(x,gy-170,8,170);ctx.fillStyle='#263a3a';ctx.beginPath();ctx.arc(x+4,gy-178,35,0,7);ctx.fill()}
+// Layered mountain silhouettes create cinematic depth.
+for(let layer=0;layer<3;layer++){for(let i=-2;i<Math.ceil(viewW/185)+3;i++){let x=cam+i*185,peak=gy-145-layer*48-((i*17+layer*23)%5)*19;ctx.fillStyle=['#18262d','#1c2b31','#24363a'][layer];ctx.beginPath();ctx.moveTo(x,gy-25);ctx.lineTo(x+72,peak);ctx.lineTo(x+185,gy-20);ctx.closePath();ctx.fill()}}
+// Cold moon glow and narrow shafts of light.
+const moon=ctx.createRadialGradient(cam+viewW*.72,gy*.18,4,cam+viewW*.72,gy*.18,gy*.7);moon.addColorStop(0,'#b7c7c344');moon.addColorStop(1,'#b7c7c300');ctx.fillStyle=moon;ctx.fillRect(cam,0,viewW,gy);
+ctx.save();ctx.globalAlpha=.075;for(let i=0;i<5;i++){let x=cam+viewW*(.12+i*.19);ctx.fillStyle='#c4d5d0';ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+32,0);ctx.lineTo(x+145,gy);ctx.lineTo(x+82,gy);ctx.closePath();ctx.fill()}ctx.restore();
+// Layered forest silhouettes with trunks, branches and rounded canopies.
+for(let i=-2;i<Math.ceil(viewW/105)+3;i++){let x=cam+i*105+((i*29)%33),height=115+((i*37)%95);ctx.fillStyle='#101a20';ctx.fillRect(x,gy-height,9,height+4);ctx.fillStyle=i%2?'#203438':'#263d3d';for(let b=0;b<3;b++){ctx.beginPath();ctx.arc(x+4,gy-height-12-b*21,30-b*4,0,Math.PI*2);ctx.fill()}ctx.strokeStyle='#111d21';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x+4,gy-height+22);ctx.lineTo(x-18,gy-height-12);ctx.moveTo(x+5,gy-height+4);ctx.lineTo(x+27,gy-height-25);ctx.stroke()}
 ctx.fillStyle='#070a0f';ctx.fillRect(0,gy,world.width,120);
+// Ground texture, scattered stones and a low bank of drifting fog.
+for(let i=0;i<Math.ceil(viewW/48)+3;i++){let x=cam+i*48;ctx.fillStyle=i%2?'#161e22':'#1b2427';ctx.beginPath();ctx.ellipse(x,gy+10,18+(i%3)*4,5,0,0,Math.PI*2);ctx.fill()}
+for(let layer=0;layer<3;layer++){ctx.save();ctx.globalAlpha=.11-layer*.02;ctx.fillStyle='#a8b8b5';ctx.beginPath();ctx.ellipse(cam+viewW*(.22+layer*.28),gy-18-layer*8,viewW*.42,13+layer*4,0,0,Math.PI*2);ctx.fill();ctx.restore()}
 world.platforms.forEach(p=>{let y=gy+p.y;ctx.fillStyle='#252d31';ctx.fillRect(p.x,y,p.w,p.h);ctx.fillStyle='#59615b';ctx.fillRect(p.x,y,p.w,5);ctx.fillStyle='#141b20';for(let x=p.x+12;x<p.x+p.w;x+=34)ctx.fillRect(x,y+12,3,18)});
 if(!world.switch.on){rounded(world.switch.x,gy+world.switch.y,22,18,5,'#b9874b');ctx.fillStyle='#f8d28d';ctx.fillRect(world.switch.x+9,gy+world.switch.y-7,4,12)}
 if(!world.door.open){ctx.fillStyle='#4b3b31';ctx.fillRect(world.door.x,gy-145,38,145);ctx.fillStyle='#c79a5b';ctx.fillRect(world.door.x+6,gy-137,4,130)}
